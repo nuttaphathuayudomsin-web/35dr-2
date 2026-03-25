@@ -191,13 +191,15 @@ def load_data(uploaded_file):
             run = str(row.get("Run", "")).strip().upper()
             if run != "Y":
                 continue
-            short_name = str(row.get("Company name", "")).strip()
             full_name = str(row.get("Full company name", "")).strip()
             exchange = str(row.get("Exchange name", "")).strip()
             units = parse_units(row.get("Units"))
             ratio = parse_ratio(row.get("Ratio"))
-            if not short_name or short_name == "nan":
+            if not full_name or full_name == "nan":
                 continue
+            import re
+            m = re.search(r'\("([^"]+)"\)', full_name)
+            short_name = m.group(1) if m else str(row.get("Company name", "")).strip()
             rows.append({
                 "type": "stock",
                 "short_name": short_name,
@@ -263,16 +265,18 @@ def gen_output1(rows):
             seen_exchanges.append(ex)
         exchange_groups[ex].append(r)
 
+    counter = 1
     for ex in seen_exchanges:
         group = exchange_groups[ex]
         lines.append(f"ตลาดหลักทรัพย์{ex}")
-        for i, r in enumerate(group, 1):
-            num = str(i) + "."
+        for r in group:
+            num = str(counter) + "."
             if r["type"] == "stock":
                 line = f"{num.ljust(10)} หุ้นสามัญของ บริษัท {r['full_name']}"
             else:
                 line = f"{num.ljust(10)} โครงการจัดการลงทุนต่างประเทศ {r['full_name']} (\"{r['short_name']}\")"
             lines.append(line)
+            counter += 1
     return "\n".join(lines)
 
 # ── Output 2: Units (restart per exchange) ──────────────────────────────────
@@ -301,7 +305,7 @@ def gen_output3(rows):
     for i, r in enumerate(rows, 1):
         num = str(i) + "."
         ratio_str = r["ratio"] if r["ratio"] else "N/A"
-        lines.append(f"{num.ljust(10)} {r['short_name']} อัตราส่วน 1 ทรัพย์สินอ้างอิง : {ratio_str} DR*")
+        lines.append(f"{num.ljust(10)} {r['short_name']} อัตราส่วน 1 ทรัพย์สินอ้างอิง : {ratio_str} DR")
     return "\n".join(lines)
 
 # ── Output 4: Units + Price (sequential) ────────────────────────────────────
