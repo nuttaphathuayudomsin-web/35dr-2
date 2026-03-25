@@ -282,12 +282,11 @@ def group_by_exchange(rows):
     for r in rows:
         ex = get_thai_exchange_header(r["exchange"])
         groups.setdefault(ex, []).append(r)
-    # Return in EXCHANGE_ORDER, then any remaining
+    # Build ordered keys strictly from EXCHANGE_ORDER, then any leftovers
     ordered_keys = []
-    for prefix in EXCHANGE_ORDER:
-        for ex in groups:
-            if ex == prefix and ex not in ordered_keys:
-                ordered_keys.append(ex)
+    for ex_key in EXCHANGE_ORDER:
+        if ex_key in groups and ex_key not in ordered_keys:
+            ordered_keys.append(ex_key)
     for ex in groups:
         if ex not in ordered_keys:
             ordered_keys.append(ex)
