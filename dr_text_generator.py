@@ -162,7 +162,10 @@ def parse_units(val):
     if s in ["•", "-", ""]:
         return None
     try:
-        return int(float(s))
+        v = float(s)
+        if v == int(v):
+            return int(v)
+        return v
     except:
         return s
 
@@ -241,12 +244,16 @@ def load_data(uploaded_file):
 
 def get_thai_exchange_header(exchange):
     """Return clean Thai exchange display name (before the parenthesis)."""
-    return exchange.split("(")[0].strip()
+    s = str(exchange).split("(")[0].strip()
+    # Normalise NYSE Arca variants
+    if "อาร์ก้า" in s or "arca" in s.lower():
+        return "นิวยอร์ก อาร์ก้า"
+    return s
 
 def format_units(n):
     """Format units number with Thai-style commas."""
     if n is None:
-        return "N/A"
+        return ""
     try:
         return f"{int(n):,}"
     except:
@@ -255,21 +262,11 @@ def format_units(n):
 # ── Output 1: Securities List ────────────────────────────────────────────────
 def gen_output1(rows):
     lines = []
-    # Group by exchange (preserving sort order)
-    seen_exchanges = []
-    exchange_groups = {}
-    for r in rows:
-        ex = get_thai_exchange_header(r["exchange"])
-        if ex not in exchange_groups:
-            exchange_groups[ex] = []
-            seen_exchanges.append(ex)
-        exchange_groups[ex].append(r)
-
+    ordered_keys, groups = group_by_exchange(rows)
     counter = 1
-    for ex in seen_exchanges:
-        group = exchange_groups[ex]
+    for ex in ordered_keys:
         lines.append(f"ตลาดหลักทรัพย์{ex}")
-        for r in group:
+        for r in groups[ex]:
             num = str(counter) + "."
             if r["type"] == "stock":
                 line = f"{num.ljust(10)} หุ้นสามัญของ บริษัท {r['full_name']}"
@@ -279,21 +276,29 @@ def gen_output1(rows):
             counter += 1
     return "\n".join(lines)
 
+def group_by_exchange(rows):
+    """Group rows by exchange in EXCHANGE_ORDER, collecting all rows per exchange."""
+    groups = {}
+    for r in rows:
+        ex = get_thai_exchange_header(r["exchange"])
+        groups.setdefault(ex, []).append(r)
+    # Return in EXCHANGE_ORDER, then any remaining
+    ordered_keys = []
+    for prefix in EXCHANGE_ORDER:
+        for ex in groups:
+            if ex == prefix and ex not in ordered_keys:
+                ordered_keys.append(ex)
+    for ex in groups:
+        if ex not in ordered_keys:
+            ordered_keys.append(ex)
+    return ordered_keys, groups
+
 # ── Output 2: Units (restart per exchange) ──────────────────────────────────
 def gen_output2(rows):
     lines = ["จำนวนหน่วยที่ขออนุญาตเสนอขาย:"]
-    seen_exchanges = []
-    exchange_groups = {}
-    for r in rows:
-        ex = get_thai_exchange_header(r["exchange"])
-        if ex not in exchange_groups:
-            exchange_groups[ex] = []
-            seen_exchanges.append(ex)
-        exchange_groups[ex].append(r)
-
-    for ex in seen_exchanges:
-        group = exchange_groups[ex]
-        for i, r in enumerate(group, 1):
+    ordered_keys, groups = group_by_exchange(rows)
+    for ex in ordered_keys:
+        for i, r in enumerate(groups[ex], 1):
             num = str(i) + "."
             units_str = format_units(r["units"])
             lines.append(f"{num.ljust(10)} {r['short_name']} จำนวนไม่เกิน {units_str} ล้านหน่วย")
@@ -302,36 +307,35 @@ def gen_output2(rows):
 # ── Output 3: Ratios (sequential) ───────────────────────────────────────────
 def gen_output3(rows):
     lines = []
-    for i, r in enumerate(rows, 1):
-        num = str(i) + "."
-        ratio_str = r["ratio"] if r["ratio"] else "N/A"
-        lines.append(f"{num.ljust(10)} {r['short_name']} อัตราส่วน 1 ทรัพย์สินอ้างอิง : {ratio_str} DR")
+    ordered_keys, groups = group_by_exchange(rows)
+    counter = 1
+    for ex in ordered_keys:
+        for r in groups[ex]:
+            num = str(counter) + "."
+            ratio_str = r["ratio"] if r["ratio"] else ""
+            lines.append(f"{num.ljust(10)} {r['short_name']} อัตราส่วน 1 ทรัพย์สินอ้างอิง : {ratio_str} DR")
+            counter += 1
     return "\n".join(lines)
 
 # ── Output 4: Units + Price (sequential) ────────────────────────────────────
 def gen_output4(rows):
     lines = []
-    for i, r in enumerate(rows, 1):
-        num = str(i) + "."
-        units_str = format_units(r["units"])
-        lines.append(f"{num.ljust(10)} {r['short_name']} จำนวนไม่เกิน {units_str} ล้านหน่วย และราคาเป็นไปตามกลไกตลาดในเวลาที่เสนอขาย")
+    ordered_keys, groups = group_by_exchange(rows)
+    counter = 1
+    for ex in ordered_keys:
+        for r in groups[ex]:
+            num = str(counter) + "."
+            units_str = format_units(r["units"])
+            lines.append(f"{num.ljust(10)} {r['short_name']} จำนวนไม่เกิน {units_str} ล้านหน่วย และราคาเป็นไปตามกลไกตลาดในเวลาที่เสนอขาย")
+            counter += 1
     return "\n".join(lines)
 
 # ── Output 5: Value (restart per exchange) ──────────────────────────────────
 def gen_output5(rows):
     lines = ["มูลค่าที่คาดว่าจะเสนอขาย :"]
-    seen_exchanges = []
-    exchange_groups = {}
-    for r in rows:
-        ex = get_thai_exchange_header(r["exchange"])
-        if ex not in exchange_groups:
-            exchange_groups[ex] = []
-            seen_exchanges.append(ex)
-        exchange_groups[ex].append(r)
-
-    for ex in seen_exchanges:
-        group = exchange_groups[ex]
-        for i, r in enumerate(group, 1):
+    ordered_keys, groups = group_by_exchange(rows)
+    for ex in ordered_keys:
+        for i, r in enumerate(groups[ex], 1):
             num = str(i) + "."
             lines.append(f"{num.ljust(10)} {r['short_name']} จำนวนไม่เกิน 10,000 ล้านบาท")
     return "\n".join(lines)
