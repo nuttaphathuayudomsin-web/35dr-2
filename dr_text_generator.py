@@ -292,15 +292,17 @@ def group_by_exchange(rows):
             ordered_keys.append(ex)
     return ordered_keys, groups
 
-# ── Output 2: Units (restart per exchange) ──────────────────────────────────
+# ── Output 2: Units (sequential) ──────────────────────────────────
 def gen_output2(rows):
     lines = ["จำนวนหน่วยที่ขออนุญาตเสนอขาย:"]
     ordered_keys, groups = group_by_exchange(rows)
+    counter = 1
     for ex in ordered_keys:
-        for i, r in enumerate(groups[ex], 1):
-            num = str(i) + "."
+        for r in groups[ex]:
+            num = str(counter) + "."
             units_str = format_units(r["units"])
             lines.append(f"{num.ljust(10)} {r['short_name']} จำนวนไม่เกิน {units_str} ล้านหน่วย")
+            counter += 1
     return "\n".join(lines)
 
 # ── Output 3: Ratios (sequential) ───────────────────────────────────────────
@@ -329,14 +331,16 @@ def gen_output4(rows):
             counter += 1
     return "\n".join(lines)
 
-# ── Output 5: Value (restart per exchange) ──────────────────────────────────
+# ── Output 5: Value (sequential) ──────────────────────────────────
 def gen_output5(rows):
     lines = ["มูลค่าที่คาดว่าจะเสนอขาย :"]
     ordered_keys, groups = group_by_exchange(rows)
+    counter = 1
     for ex in ordered_keys:
-        for i, r in enumerate(groups[ex], 1):
-            num = str(i) + "."
+        for r in groups[ex]:
+            num = str(counter) + "."
             lines.append(f"{num.ljust(10)} {r['short_name']} จำนวนไม่เกิน 10,000 ล้านบาท")
+            counter += 1
     return "\n".join(lines)
 
 def make_txt_download(outputs):
